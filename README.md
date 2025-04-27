@@ -1,3 +1,3 @@
 # doc_helin
 
-A new Flutter project.
+this is a web application for managing the patiient
