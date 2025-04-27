@@ -1,11 +1,11 @@
 {
-    "name": "doc_helin",
-    "short_name": "doc_helin",
+    "name": "Dr Helin'",
+    "short_name": "dr.Helin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Patint Management System for Dr.helin",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 Future<String> getToken() async {
   final preff = await SharedPreferences.getInstance();
@@ -21,11 +23,25 @@ Future<void> setToken(String token) async {
 }
 
 class Api {
-  String baseUrl = 'http://165.232.71.180:8080';
-  //String baseUrl = 'http://localhost:8080';
-  String? authToken; // Stores JWT token
+  
+  String baseUrl = 'http://localhost:8080';
+  //String baseUrl = '';
+  String? authToken;
 
-  // Authenticate user and store JWT token
+  Future<int> updateFutureAppointmentDate(
+      int appointmentID, DateTime date) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/appointment/update/$appointmentID'),
+      headers: await _getHeaders(),
+      body: jsonEncode({
+        "appointmentDate": DateFormat('yyyy-MM-dd').format(date),
+      }),
+    );
+
+    return response.statusCode;
+  }
+
+
   Future<bool> authenticateUser(String username, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/login'),
@@ -44,7 +60,16 @@ class Api {
     return false;
   }
 
-  // Helper method to get headers with authentication
+  Future<bool> deleteAllhistory(int patientID) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/history-appointment/delete/$patientID'),
+      headers: await _getHeaders(),
+    );
+
+    return response.statusCode == 200;
+  }
+
+ 
   Future<Map<String, String>> _getHeaders() async {
     return {
       'Content-Type': 'application/json',
@@ -52,54 +77,55 @@ class Api {
     };
   }
 
-  // Get list of all patients
+
   Future<List<dynamic>> getAllPatients() async {
     final response = await http.get(Uri.parse('$baseUrl/patients/getAll'),
         headers: await _getHeaders());
-    print(await getToken());
+
     return response.statusCode == 200 ? jsonDecode(response.body) : [];
   }
 
-  // Get list of patients with appointments
+  
   Future<List<dynamic>> getPatientsWithAppointments() async {
     final response = await http.get(Uri.parse('$baseUrl/patients/getByDate'),
         headers: await _getHeaders());
     return response.statusCode == 200 ? jsonDecode(response.body) : [];
   }
 
-  // Search patient by name
+  
   Future<List<dynamic>> searchByName(String name) async {
     final api = "$baseUrl/patients/searchName?param=$name";
     final String token = await getToken();
     final response = await http.get(Uri.parse(api), headers: {
       "Content-Type": "application/json",
-      "Accept": "application/json",
-      "Authorization": 'Bearer $token',
+      "Authorization": "Bearer $token",
     });
-    print(response.body);
+
     return response.statusCode == 200 ? jsonDecode(response.body) : [];
   }
 
   // Search patient by phone
   Future<Map<String, dynamic>> searchByPhone(String phone) async {
-    final response = await http.get(
-        Uri.parse('$baseUrl/patients/searchPhone?param=$phone'),
-        headers: await _getHeaders());
+    final response = await http
+        .get(Uri.parse('$baseUrl/patients/searchPhone?param=$phone'), headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer ${await getToken()}",
+    });
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
 
       if (data is Map<String, dynamic>) {
-        return data; // Correct type
+        return data;
       } else {
-        return {}; // Return empty map instead of a list
+        return {}; 
       }
     }
 
-    return {}; // Return empty map for non-200 responses
+    return {}; 
   }
 
-  // Save a new patient
+ 
   Future<Map<String, dynamic>> savePatient({
     String? name,
     String? secondname,
@@ -132,8 +158,6 @@ class Api {
           "skinType": '$skintype',
         }));
 
-    final result = response.statusCode;
-    print(response.body);
     return jsonDecode(response.body);
   }
 
@@ -150,7 +174,7 @@ class Api {
   // Save history appointment
   Future<bool> saveHistoryAppointment(Map<String, dynamic> historyData) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/appointments/history'),
+      Uri.parse('$baseUrl/history-appointment/insert'),
       headers: await _getHeaders(),
       body: jsonEncode(historyData),
     );
@@ -179,7 +203,6 @@ class Api {
           "tratment": tratment,
         }));
 
-    print('addPatienttoHistiry response: ${response.body}');
     return response.statusCode;
   }
 
@@ -196,8 +219,27 @@ class Api {
           "appointmentDate": DateFormat('yyyy-MM-dd').format(date),
         }));
 
-    print('addPatientAppointment response: ${response.statusCode}');
     return response.statusCode;
+  }
+
+  Future<Map<String, dynamic>> getPatientByID(int id) async {
+    final api = '$baseUrl/patients/getById/$id';
+    final uri = Uri.parse(api);
+    final response = await http.get(uri, headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer ${await getToken()}",
+    });
+
+    return jsonDecode(response.body);
+  }
+
+  Future<bool> deleteFutureAppointment(int id) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/appointment/delete/$id'),
+      headers: await _getHeaders(),
+    );
+
+    return response.statusCode == 200;
   }
 
   // Update patient details
@@ -213,12 +255,20 @@ class Api {
 
   // Delete a patient
   Future<bool> deletePatient(int patientId) async {
+    try {
+      await deleteAllhistory(patientId);
+
+      await deleteFutureAppointment(patientId);
+    } catch (e) {
+      log('Error deleting patient: $e');
+      return false;
+    }
+
     final response = await http.delete(
       Uri.parse('$baseUrl/patients/delete/$patientId'),
       headers: await _getHeaders(),
     );
 
-    print('delete patient response: ${response.statusCode}');
     return response.statusCode == 200;
   }
 
@@ -232,9 +282,15 @@ class Api {
       final List<dynamic> patients = jsonDecode(response.body);
       if (patients.isNotEmpty) {
         return patients[0][
-            'id']; // Assuming the response contains a list of patients and the ID is in the 'id' field
+            'id']; 
       }
     }
-    return null; // Return null if no patient is found or an error occurs
+    return null; 
+  }
+
+  Future<bool> isTokenValied() async {
+    final token = await getToken();
+    if (token == '') return false;
+    return !JwtDecoder.isExpired(token);
   }
 }

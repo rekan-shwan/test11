@@ -1,9 +1,11 @@
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 import 'package:doc_helin/Backend/api.dart';
+import 'package:doc_helin/screens/add_new_patient.dart';
 import 'package:doc_helin/screens/main_screen.dart';
 import 'package:doc_helin/util/dashbord_carts.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class Dashbord extends StatefulWidget {
@@ -22,32 +24,58 @@ class _DashbordState extends State<Dashbord> {
   int totalAppointments = 0;
   late Future<List<dynamic>> _appointmentsFuture;
   int hoverIndex = -1;
+  String errorPhone = '';
+  bool isPhoneExest = false;
+
+  TextEditingController phoneNumberCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Initialize the future in initState
+    
     _appointmentsFuture = fetchData(selectedDate);
+  }
+
+  void showResultMessage(bool isSuccess, {String? message}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.symmetric(horizontal: 90, vertical: 10),
+        backgroundColor: isSuccess ? Colors.green : Colors.red,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+        content: Container(
+          alignment: Alignment.center,
+          height: 20,
+          child: Text(
+            message ??
+                (isSuccess
+                    ? 'Patient saved successfully ✅'
+                    : 'An error occurred ❌'),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
   }
 
   void updateSelectedDate(DateTime date) {
     setState(() {
       selectedDate = date;
-      // Create a new future for the new date
+    
       _appointmentsFuture = fetchData(date);
     });
   }
 
   Future<List<dynamic>> fetchData(DateTime selectedDate) async {
     try {
-      // Format the selected date to midnight to ensure proper date comparison
+     
       final formattedSelectedDate = DateTime(
         selectedDate.year,
         selectedDate.month,
         selectedDate.day,
       );
 
-      // Fetch all patients for the total count
+      
       final allPatients = await api.getAllPatients();
 
       if (mounted) {
@@ -56,13 +84,10 @@ class _DashbordState extends State<Dashbord> {
         });
       }
 
-      // Fetch patients with appointments
+      
       final patientsWithAppointments = await api.getPatientsWithAppointments();
 
-      print(
-          'Total patients with appointments: ${patientsWithAppointments.length}');
-
-      // Filter the patients by selected date
+     
       List<dynamic> filteredPatients = [];
 
       for (var patient in patientsWithAppointments) {
@@ -80,43 +105,262 @@ class _DashbordState extends State<Dashbord> {
           }
 
           final appointmentDate = DateTime.parse(appointmentDateStr);
-          // Format to midnight for comparison (ignoring time component)
+         
           final formattedAppointmentDate = DateTime(
             appointmentDate.year,
             appointmentDate.month,
             appointmentDate.day,
           );
 
-          // Compare dates
+         
           if (formattedAppointmentDate.year == formattedSelectedDate.year &&
               formattedAppointmentDate.month == formattedSelectedDate.month &&
               formattedAppointmentDate.day == formattedSelectedDate.day) {
             filteredPatients.add(patient);
           }
         } catch (e) {
-          print("Error parsing date for patient ${patient['pname']}: $e");
+          debugPrint('Error filtering patients: $e');
         }
       }
 
-      print(
-          'Filtered patients for ${DateFormat('yyyy-MM-dd').format(selectedDate)}: ${filteredPatients.length}');
       setState(() {
         selectedDateAppointment = filteredPatients.length;
         totalAppointments = patientsWithAppointments.length;
       });
 
-      // Return the filtered data
+     
       return filteredPatients;
     } catch (error) {
-      print("Error fetching data: $error");
-      print("Exception details: ${error.toString()}");
       return [];
     }
   }
 
+  Future<Map<String, dynamic>> onPhoneCahnge() async {
+    if (phoneNumberCtrl.text.length == 11) {
+      try {
+        final value = await api.searchByPhone(phoneNumberCtrl.text);
+
+        if (!context.mounted) return {}; 
+
+        setState(() {
+          isPhoneExest = value.isNotEmpty;
+        });
+
+        return value;
+      } catch (e) {
+        return {};
+      }
+    } else {
+      if (!context.mounted) return {};
+
+      setState(() {
+        isPhoneExest = false;
+      });
+      return {};
+    }
+  }
+
+  void addPatient(Size screen) {
+    phoneNumberCtrl.clear();
+    bool isLoading = false; 
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return SizedBox(
+              width: screen.width * 0.9,
+              child: Dialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5)),
+                child: Container(
+                  width: screen.width > 600
+                      ? screen.width * 0.6
+                      : screen.width * 0.9,
+                  height: screen.height * 0.6,
+                  color: Color(0xFFDEEAEA),
+                  padding: EdgeInsets.all(50),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    spacing: 20,
+                    children: [
+                      Text(
+                        'Add a Patient',
+                        style: TextStyle(fontSize: 20),
+                      ),
+                      SizedBox(
+                        height: 30,
+                      ),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: TextField(
+                          controller: phoneNumberCtrl,
+                          onChanged: (value) async {
+                            setState(() {
+                              isLoading = true; 
+                              errorPhone = ''; 
+                            });
+                            await onPhoneCahnge(); 
+                            setState(() {
+                              isLoading = false; 
+                              errorPhone = ''; 
+                            });
+                          },
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          decoration: InputDecoration(
+                            fillColor: Colors.black12,
+                            border: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(0)),
+                            hintText: 'Phone Number',
+                            hintStyle: TextStyle(color: Colors.black45),
+                          ),
+                        ),
+                      ),
+                      isLoading
+                          ? CircularProgressIndicator() 
+                          : Text(errorPhone),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 100,
+                            child: ElevatedButton(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStatePropertyAll(Colors.red),
+                              ),
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 20),
+                          SizedBox(
+                            width: 100,
+                            child: ElevatedButton(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStatePropertyAll(Colors.green),
+                              ),
+                              onPressed: () async {
+                                if (phoneNumberCtrl.text.length < 11) {
+                                  setState(() {
+                                    errorPhone = 'Phone number is too short';
+                                  });
+                                  return;
+                                }
+                                if (isLoading) {
+                                  setState(() {
+                                    errorPhone = 'Loading...';
+                                  });
+                                }
+                                if (isPhoneExest == false) {
+                                  Navigator.pop(context);
+
+                                  addnewPatientDialog(phoneNumberCtrl.text);
+
+                                  setState(() {
+                                    errorPhone = '';
+                                  });
+                                } else if (isPhoneExest == true) {
+                                  try {
+                                  
+
+                                    final patientData = await api
+                                        .searchByPhone(phoneNumberCtrl.text)
+                                        .then((value) =>
+                                            Map<String, dynamic>.from(value))
+                                        .then((data) {
+                                      selectedNavigation.value = 1;
+                                      patientMapNotifier.value = data;
+                                      isPatientShow.value = true;
+                                    });
+
+                                   
+                                    if (patientData != null &&
+                                        patientData.isNotEmpty) {
+                                     
+                                      await Future.delayed(
+                                          Duration(seconds: 1));
+
+                                      if (context.mounted) {}
+                                    } else {}
+                                  } catch (e) {
+                                    debugPrint(
+                                        'Error fetching patient data: $e');
+                                  }
+                                  if (!context.mounted) return;
+                                  Navigator.pop(context);
+                                }
+                              },
+                              child: Text(
+                                'Add',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void addnewPatientDialog(String phone) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: EdgeInsets.all(10),
+          child: SizedBox(
+            child: Material(
+              child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.96,
+                  width: MediaQuery.of(context).size.width > 600
+                      ? MediaQuery.of(context).size.width * 0.9
+                      : MediaQuery.of(context).size.width * 0.99,
+                  child: PatientRegistrationScreen(phoneNum: phone)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void onAddPatint() {
-    print('Add Patient');
-    // Add your navigation or dialog to add a patient here
+    
+    addPatient(MediaQuery.of(context).size);
+
+    // showDialog(
+    //   context: context,
+    //   builder: (context) {
+    //     return Dialog(
+    //       child: Material(
+    //         child: SizedBox(
+    //             height: MediaQuery.of(context).size.height * 0.96,
+    //             width: MediaQuery.of(context).size.width * 0.9,
+    //             child: PatientRegistrationScreen(phoneNum: '83298')),
+    //       ),
+    //     );
+    //   },
+    // );
   }
 
   String _showDate(DateTime date) {
@@ -204,13 +448,13 @@ class _DashbordState extends State<Dashbord> {
             Expanded(
                 child: DashbordCarts(
               icon: Icons.timelapse_sharp,
-              title: 'Total Appointments',
+              title: 'Appointments',
               number: totalAppointments,
             )),
           ],
         ),
         SizedBox(height: 20),
-        Container(
+        SizedBox(
           child: Row(
             children: [
               Expanded(
@@ -248,7 +492,7 @@ class _DashbordState extends State<Dashbord> {
             Expanded(
                 child: DashbordCarts(
               icon: Icons.timelapse_sharp,
-              title: 'Total Appointments',
+              title: 'Appointments',
               number: totalAppointments,
             )),
           ],
@@ -353,7 +597,7 @@ class _DashbordState extends State<Dashbord> {
             ],
           ),
           SizedBox(height: 10),
-          // List of patients with appointments
+          
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: _appointmentsFuture,
@@ -441,7 +685,7 @@ class _DashbordState extends State<Dashbord> {
                         },
                         child: Container(
                           color: hoverIndex == index
-                              ? Color(0xFF47AEC6).withOpacity(0.1)
+                              ? Color.fromARGB(138, 71, 175, 198)
                               : Colors.transparent,
                           margin: EdgeInsets.only(bottom: 8),
                           child: Padding(

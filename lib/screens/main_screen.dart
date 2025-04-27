@@ -1,9 +1,12 @@
 import 'package:doc_helin/Backend/api.dart';
+import 'package:doc_helin/screens/add_new_patient.dart';
 import 'package:doc_helin/screens/dashbord.dart';
+import 'package:doc_helin/screens/log_out_screen.dart';
 import 'package:doc_helin/screens/patients.dart';
 import 'package:doc_helin/util/drop_down.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class MainScreen extends StatefulWidget {
@@ -15,7 +18,7 @@ class MainScreen extends StatefulWidget {
 
 ValueNotifier<bool> reloadNotifier = ValueNotifier(false);
 ValueNotifier<int> selectedNavigation = ValueNotifier(0);
-ValueNotifier<bool> isPatientShow = ValueNotifier(true);
+ValueNotifier<bool> isPatientShow = ValueNotifier(false);
 ValueNotifier<String> patientPhone = ValueNotifier('');
 ValueNotifier<Map<String, dynamic>> patientMapNotifier = ValueNotifier({});
 
@@ -125,35 +128,274 @@ class _MainScreenState extends State<MainScreen> {
       'widget': Patients(),
       'description': 'Manage patients',
     },
-    {
-      'name': 'Settings',
-      'icon': Icons.settings,
-      'widget': Center(
-        child: Text('Available soon'),
-      ),
-      'description': 'Settings',
-    },
-    {
-      'name': 'Services',
-      'icon': Icons.add_chart_sharp,
-      'widget': Center(
-        child: Text('Available soon'),
-      ),
-      'description': 'Services',
-    },
+    // {
+    //   'name': 'Reports',
+    //   'icon': Icons.show_chart_sharp,
+    //   'widget': Center(
+    //     child: ReportSection(),
+    //   ),
+    //   'description': 'Settings',
+    // },
+    // {
+    //   'name': 'Settings',
+    //   'icon': Icons.settings,
+    //   'widget': Center(
+    //     child: SettingsScreen(),
+    //   ),
+    //   'description': 'Settings',
+    // },
+    // {
+    //   'name': 'Services',
+    //   'icon': Icons.add_chart_sharp,
+    //   'widget': Center(
+    //     child: ServicesScreen(),
+    //   ),
+    //   'description': 'Services',
+    // },
     {
       'name': 'Log out',
-      'icon': Icons.account_circle_sharp,
-      'widget': Text('Account'),
+      'icon': Icons.login_rounded,
+      'widget': LogOutScreen(),
       'description': 'Log out',
     },
   ];
   late Future<List<dynamic>> fetchDate;
+  bool isSearchOpen = false;
+  TextEditingController phoneNumberCtrl = TextEditingController();
+  String errorPhone = '';
+  bool isPhoneExest = false;
+
+  Future<Map<String, dynamic>> onPhoneCahnge() async {
+    if (phoneNumberCtrl.text.length == 11) {
+      try {
+        final value = await api.searchByPhone(phoneNumberCtrl.text);
+
+        if (!context.mounted) return {}; 
+
+        setState(() {
+          isPhoneExest = value.isNotEmpty;
+        });
+
+        return value;
+      } catch (e) {
+        return {};
+      }
+    } else {
+      if (!context.mounted) return {};
+
+      setState(() {
+        isPhoneExest = false;
+      });
+      return {};
+    }
+  }
+
+  void addPatient(Size screen) {
+    phoneNumberCtrl.clear();
+    bool isLoading = false; 
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return SizedBox(
+              width: screen.width * 0.9,
+              child: Dialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5)),
+                child: Container(
+                  width: screen.width > 600
+                      ? screen.width * 0.6
+                      : screen.width * 0.9,
+                  height: screen.height * 0.6,
+                  color: Color(0xFFDEEAEA),
+                  padding: EdgeInsets.all(50),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    spacing: 20,
+                    children: [
+                      Text(
+                        'Add a Patient',
+                        style: TextStyle(fontSize: 20),
+                      ),
+                      SizedBox(
+                        height: 30,
+                      ),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: TextField(
+                          controller: phoneNumberCtrl,
+                          onChanged: (value) async {
+                            setState(() {
+                              isLoading = true;
+                              errorPhone = ''; 
+                            });
+                            await onPhoneCahnge(); 
+                            setState(() {
+                              isLoading = false; 
+                              errorPhone = ''; 
+                            });
+                          },
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          decoration: InputDecoration(
+                            fillColor: Colors.black12,
+                            border: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(0)),
+                            hintText: 'Phone Number',
+                            hintStyle: TextStyle(color: Colors.black45),
+                          ),
+                        ),
+                      ),
+                      isLoading
+                          ? CircularProgressIndicator() 
+                          : Text(errorPhone),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 100,
+                            child: ElevatedButton(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStatePropertyAll(Colors.red),
+                              ),
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 20),
+                          SizedBox(
+                            width: 100,
+                            child: ElevatedButton(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStatePropertyAll(Colors.green),
+                              ),
+                              onPressed: () async {
+                                if (phoneNumberCtrl.text.length < 11) {
+                                  setState(() {
+                                    errorPhone = 'Phone number is too short';
+                                  });
+                                  return;
+                                }
+                                if (isLoading) {
+                                  setState(() {
+                                    errorPhone = 'Loading...';
+                                  });
+                                }
+                                if (isPhoneExest == false) {
+                                  Navigator.pop(context);
+
+                                  addnewPatientDialog(phoneNumberCtrl.text);
+
+                                  setState(() {
+                                    errorPhone = '';
+                                  });
+                                } else if (isPhoneExest == true) {
+                                  try {
+                                    
+                                    final patientData = await api
+                                        .searchByPhone(phoneNumberCtrl.text)
+                                        .then((value) =>
+                                            Map<String, dynamic>.from(value))
+                                        .then((data) {
+                                      selectedNavigation.value = 1;
+                                      patientMapNotifier.value = data;
+                                      isPatientShow.value = true;
+                                    });
+
+                                    
+                                    if (patientData != null &&
+                                        patientData.isNotEmpty) {
+                                      
+                                      await Future.delayed(
+                                          Duration(seconds: 1));
+
+                                      if (context.mounted) {}
+                                    } else {}
+                                  } catch (e) {
+                                    debugPrint('Error fetching patient: $e');
+                                  }
+                                  if (!context.mounted) return;
+                                  Navigator.pop(context);
+                                }
+                              },
+                              child: Text(
+                                'Add',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void addnewPatientDialog(String phone) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: EdgeInsets.all(10),
+          child: SizedBox(
+            child: Material(
+              child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.96,
+                  width: MediaQuery.of(context).size.width > 600
+                      ? MediaQuery.of(context).size.width * 0.9
+                      : MediaQuery.of(context).size.width * 0.99,
+                  child: PatientRegistrationScreen(phoneNum: phone)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void onAddPatint() {
+
+    addPatient(MediaQuery.of(context).size);
+
+    // showDialog(
+    //   context: context,
+    //   builder: (context) {
+    //     return Dialog(
+    //       child: Material(
+    //         child: SizedBox(
+    //             height: MediaQuery.of(context).size.height * 0.96,
+    //             width: MediaQuery.of(context).size.width * 0.9,
+    //             child: PatientRegistrationScreen(phoneNum: '83298')),
+    //       ),
+    //     );
+    //   },
+    // );
+  }
 
   ScrollController scrollController = ScrollController();
   Api api = Api();
+  List searchList = [];
 
-  void _reload() {
+  void reload() {
     reloadNotifier.value = !reloadNotifier.value;
   }
 
@@ -166,12 +408,20 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  Future<List<dynamic>> fetchPatients() async {
+    try {
+      return api.getAllPatients();
+    } catch (e) {
+      return [];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.of(context).size;
     bool bigScreen = screen.width > 1000;
     bool midScreen = screen.width > 700;
-    bool smallScreen = screen.width < 550;
+    bool smallScreen = screen.width < 700;
 
     return ValueListenableBuilder(
         valueListenable: reloadNotifier,
@@ -195,7 +445,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: InkWell(
                       onTap: () {
                         selectedNavigation.value = index;
-                        Navigator.pop(context); // Close drawer after selection
+                        Navigator.pop(context); 
                       },
                       child: Container(
                         height: 50,
@@ -239,7 +489,7 @@ class _MainScreenState extends State<MainScreen> {
                 return ValueListenableBuilder(
                     valueListenable: selectedNavigation,
                     builder: (context, value, child) {
-                      return Container(
+                      return SizedBox(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,30 +515,90 @@ class _MainScreenState extends State<MainScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Container(
+                                      SizedBox(
                                         height: 100,
                                         child: Row(
                                           children: [
                                             Text(
                                               '${_navigationItems[value]['description']}',
                                               style: TextStyle(
-                                                  fontSize: 24,
+                                                  fontSize:
+                                                      smallScreen ? 20 : 24,
                                                   fontWeight: FontWeight.bold),
                                             ),
                                             Spacer(),
-                                            DropDown(
-                                              isIcon: smallScreen,
-                                              isSearch: false,
-                                              hintText:
-                                                  'Search ${screen.width}',
-                                              prefixIcon: Icon(Icons.search),
-                                              icon: Icons.search,
-                                              textEditingController:
-                                                  TextEditingController(),
-                                              onChoose: (value) {},
-                                              list: ['s'],
-                                              overlayPortalController:
-                                                  OverlayPortalController(),
+                                            Visibility(
+                                                visible: !smallScreen ||
+                                                    !isSearchOpen,
+                                                child: SizedBox(
+                                                  width: smallScreen ? 25 : 35,
+                                                  height: smallScreen ? 25 : 35,
+                                                  child: IconButton(
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        foregroundColor: Colors
+                                                            .white, 
+                                                        padding:
+                                                            EdgeInsets.all(0),
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(10),
+                                                        ),
+                                                        backgroundColor:
+                                                            const Color(
+                                                                0xFF47AEC6),
+                                                      ),
+                                                      onPressed: () {
+                                                        onAddPatint();
+                                                      },
+                                                      icon: Icon(Icons.add)),
+                                                )),
+                                            SizedBox(width: 10),
+                                            Visibility(
+                                                visible: smallScreen &&
+                                                    !isSearchOpen,
+                                                child: IconButton(
+                                                    onPressed: () {
+                                                      setState(() {
+                                                        isSearchOpen =
+                                                            !isSearchOpen;
+                                                      });
+                                                    },
+                                                    icon: Icon(Icons.search))),
+                                            Visibility(
+                                              visible: bigScreen || midScreen
+                                                  ? true
+                                                  : smallScreen && isSearchOpen,
+                                              child: DropDown(
+                                                fetchData: fetchPatients,
+                                                containerWidth:
+                                                    smallScreen ? 150 : 300,
+                                                containerHieght: 40,
+                                                isSearch: true,
+                                                onCanle: () {
+                                                  setState(() {
+                                                    isSearchOpen = false;
+                                                  });
+                                                },
+                                                hintText: 'Search ',
+                                                prefixIcon: Icon(Icons.search),
+                                                icon: Icons.search,
+                                                textEditingController:
+                                                    TextEditingController(),
+                                                onChoose: (value) {
+                                                  patientMapNotifier.value =
+                                                      value;
+                                                  isPatientShow.value = true;
+                                                  selectedNavigation.value = 1;
+                                                  setState(() {
+                                                    isSearchOpen = false;
+                                                  });
+                                                },
+                                                overlayPortalController:
+                                                    OverlayPortalController(),
+                                              ),
                                             ),
                                             smallScreen
                                                 ? IconButton(
@@ -340,19 +650,21 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 100), // Space for app bar/logo
+              const SizedBox(height: 100), 
               Expanded(
                 child: ListView.builder(
-                  itemCount: _navigationItems.length - 1, // Exclude logout
+                  itemCount: _navigationItems.length - 1, 
                   itemBuilder: (context, index) {
                     return InkWell(
                         onTap: () async {
                           try {
                             List<dynamic> patients = await api.getAllPatients();
                             patientMapNotifier.value = patients[0];
-                          } catch (e) {}
-                          print(await api.getAllPatients());
+                          } catch (e) {
+                            debugPrint('Error fetching patients: $e');
+                          }
 
+                          isPatientShow.value = false;
                           selectedNavigation.value = index;
                           reloadNotifier.value = !reloadNotifier.value;
                         },
@@ -391,6 +703,7 @@ class _MainScreenState extends State<MainScreen> {
             child: InkWell(
               onTap: () {
                 context.go('/');
+                removeToken();
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5),
@@ -435,13 +748,17 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           Column(
             children: [
-              const SizedBox(height: 100), // Space for app bar/logo
+              const SizedBox(height: 100),
               Expanded(
                 child: ListView.builder(
-                  itemCount: _navigationItems.length - 1, // Exclude logout
+                  itemCount: _navigationItems.length - 1,
                   itemBuilder: (context, index) {
                     return InkWell(
-                        onTap: () => selectedNavigation.value = index,
+                        onTap: () {
+                          selectedNavigation.value = index;
+                          reloadNotifier.value = !reloadNotifier.value;
+                          isPatientShow.value = false;
+                        },
                         child: Container(
                             padding: EdgeInsets.symmetric(horizontal: 5),
                             margin: const EdgeInsets.symmetric(

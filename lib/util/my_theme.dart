@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 //0xFF47AEC6  light blue shine
 
 class MyTheme {
-  static Color mainPurpule = Color(0xFF453F84);
+  static Color mainPurpule = Color(0xFFC4D8D9);
   static Color mainPink = const Color(0xFFBB83FF);
   static ThemeData them() {
     return ThemeData(
@@ -18,6 +18,14 @@ class MyTheme {
         secondaryContainer: Colors.red,
         primaryContainer: Colors.pink,
         surfaceContainerLow: mainPurpule,
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+    
+        thickness: WidgetStatePropertyAll(0),
+        thumbVisibility: WidgetStatePropertyAll(false),
+        trackVisibility: WidgetStatePropertyAll(false),
+        trackColor: WidgetStatePropertyAll(Colors.transparent),
+        thumbColor: WidgetStatePropertyAll(Colors.transparent),
       ),
       inputDecorationTheme: InputDecorationTheme(
         floatingLabelAlignment: FloatingLabelAlignment.start,

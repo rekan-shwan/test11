@@ -22,7 +22,7 @@ class _SignInState extends State<SignIn> {
   final TextEditingController passwordEditCtrl = TextEditingController();
   final Api api = Api();
 
-  /// Open WhatsApp support for login issues
+
   Future<void> openSupport() async {
     final uri = Uri.parse(
       'https://wa.me/+9647511715829?text=${Uri.encodeComponent('Having issues logging into Leap-D platform')}',
@@ -32,24 +32,24 @@ class _SignInState extends State<SignIn> {
     }
   }
 
-  /// Handle user authentication
+
   Future<void> login() async {
     setState(() {
       isLoading = true;
-      errorText = ''; // Clear previous errors
+      errorText = '';
     });
 
     try {
-      // Validate inputs before sending request
+     
       if (usernameEditCtrl.text.isEmpty || passwordEditCtrl.text.isEmpty) {
         throw Exception('Username and password cannot be empty');
       }
       bool isValid = await api.authenticateUser(
-        usernameEditCtrl.text.trim(), // Trim spaces
+        usernameEditCtrl.text.trim(), 
         passwordEditCtrl.text.trim(),
       );
 
-      if (!mounted) return; // Ensure widget is still in the tree
+      if (!mounted) return; 
 
       setState(() {
         isLoading = false;
@@ -64,10 +64,10 @@ class _SignInState extends State<SignIn> {
 
       setState(() {
         isLoading = false;
-        errorText = 'Login failed: ${e.toString()}'; // Show error message
+        errorText = 'Login failed: ${e.toString()}'; 
       });
 
-      debugPrint('Login error: $e'); // Log error to debug console
+      debugPrint('Login error: $e');
     }
   }
 
@@ -97,7 +97,7 @@ class _SignInState extends State<SignIn> {
             ),
             const SizedBox(height: 30),
 
-            /// Username Field
+           
             TextField(
               controller: usernameEditCtrl,
               autofillHints: const [AutofillHints.username],
@@ -110,7 +110,7 @@ class _SignInState extends State<SignIn> {
             ),
             const SizedBox(height: 10),
 
-            /// Password Field
+            
             TextField(
               controller: passwordEditCtrl,
               obscureText: isPasswordHide,
@@ -136,7 +136,7 @@ class _SignInState extends State<SignIn> {
             ),
             const SizedBox(height: 20),
 
-            /// Login Button with Loading
+            
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -167,7 +167,7 @@ class _SignInState extends State<SignIn> {
             ),
             const SizedBox(height: 10),
 
-            /// Error Message
+          
             if (errorText.isNotEmpty)
               Text(
                 'err $errorText',
@@ -175,7 +175,7 @@ class _SignInState extends State<SignIn> {
               ),
             const SizedBox(height: 20),
 
-            /// Forgot Password
+          
             InkWell(
               onTap: openSupport,
               child: Text.rich(
